@@ -8,6 +8,15 @@ env/
 venv/
 ENV/
 
+# Media Uploads & Temp Files
+uploads/*
+!uploads/.gitkeep
+
+# Node & Next.js
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+
 # macOS
 .DS_Store
 

@@ -1,6 +1,6 @@
 # FluxMedia - Distributed Media Task Queue
 
-FluxMedia is a distributed media processing task queue backend built with **FastAPI**, **Celery**, and **Redis** on macOS. It is designed to handle asynchronous, CPU-intensive media processing workloads (such as FFmpeg video compression using H.264, audio transcoding, and media transformation) without blocking HTTP API requests.
+FluxMedia is a full-stack distributed media processing task queue built with **FastAPI**, **Celery**, **Redis**, and **Next.js (App Router)** on macOS. It is designed to handle asynchronous, CPU-intensive media processing workloads (such as FFmpeg H.264 video compression) with an elegant **Onyx & Alabaster** user interface.
 
 ---
 
@@ -10,166 +10,137 @@ FluxMedia is a distributed media processing task queue backend built with **Fast
 FluxMedia/
 ├── app/
 │   ├── __init__.py        # App package marker
-│   ├── main.py            # FastAPI API gateway & route handlers
-│   └── worker.py          # Celery worker with FFmpeg compression & dummy tasks
+│   ├── main.py            # FastAPI API gateway (UploadFile, CORS, Download, Status)
+│   └── worker.py          # Celery worker (FFmpeg H.264 transcoding, solo pool)
+├── frontend/              # Next.js App Router Frontend
+│   ├── src/
+│   │   ├── app/
+│   │   │   ├── layout.tsx # Root layout with Onyx & Alabaster ThemeProvider
+│   │   │   ├── page.tsx   # Interactive pipeline UI (Upload, Track, Result)
+│   │   │   └── globals.css# Tailwind theme styles
+│   │   ├── components/
+│   │   │   ├── Navbar.tsx        # Header with branding & theme toggle
+│   │   │   ├── UploadZone.tsx    # Minimalist drag-and-drop video uploader
+│   │   │   ├── StatusTracker.tsx # 2-second polling with Framer Motion animations
+│   │   │   ├── SpotlightCard.tsx # Cursor-tracking spotlight illumination card
+│   │   │   ├── ResultCard.tsx    # Completion card with instant download CTA
+│   │   │   ├── ThemeProvider.tsx # Client theme provider wrapper
+│   │   │   └── ThemeToggle.tsx   # Dark/light theme switch
+│   │   └── lib/
+│   │       ├── api.ts     # API client connecting to FastAPI backend
+│   │       └── utils.ts   # Helper utilities (cn, formatBytes)
+│   ├── tailwind.config.ts # Onyx (#09090B) & Alabaster (#FAFAFA) palette
+│   └── package.json       # Frontend dependencies (Framer Motion, Lucide, Tailwind)
+├── uploads/               # Shared storage for original & compressed media
 ├── main.py                # Root-level entrypoint alias for uvicorn
-├── requirements.txt       # Project dependencies
-├── .gitignore             # Git ignore patterns for Python & macOS
-└── README.md              # Setup and execution guide
+├── requirements.txt       # Python dependencies (FastAPI, Celery, Redis, python-multipart)
+├── .gitignore             # Git ignore patterns for Python, Node & macOS
+└── README.md              # Full-stack documentation
 ```
 
 ---
 
 ## Prerequisites (macOS)
 
-1. **Python 3.10+**: Ensure Python is installed.
-2. **Redis**: Installed via Homebrew (`brew install redis`).
-3. **FFmpeg**: Installed via Homebrew (`brew install ffmpeg`).
+1. **Python 3.10+**: Python virtual environment (`venv`).
+2. **Node.js 18+ & npm**: For running the Next.js frontend.
+3. **Redis**: Installed via Homebrew (`brew install redis`).
+4. **FFmpeg**: Installed via Homebrew (`brew install ffmpeg`).
 
 ---
 
 ## Installation & Setup
 
-1. **Navigate to the project directory**:
-   ```bash
-   cd /Users/sreerag/projects/FluxMedia
-   ```
+### 1. Backend Setup
+```bash
+cd /Users/sreerag/projects/FluxMedia
+source venv/bin/activate
+pip install -r requirements.txt
+```
 
-2. **Activate the Virtual Environment**:
-   ```bash
-   source venv/bin/activate
-   ```
-   *(If creating a new virtual environment: `python3 -m venv venv && source venv/bin/activate`)*
-
-3. **Install Dependencies**:
-   ```bash
-   pip install -r requirements.txt
-   ```
+### 2. Frontend Setup
+```bash
+cd /Users/sreerag/projects/FluxMedia/frontend
+npm install
+```
 
 ---
 
 ## Running the Application (macOS Terminal Tabs)
 
-To run the complete distributed stack locally, open three separate terminal tabs (or windows):
+To run the complete full-stack architecture locally, open separate terminal tabs:
 
 ### Tab 1: Start Redis
-
-Ensure Redis is running locally on default port `6379`.
-
-- **Option A (Foreground Process):**
-  ```bash
-  redis-server
-  ```
-- **Option B (Homebrew Service):**
-  ```bash
-  brew services start redis
-  ```
-
-> **Verify Redis:** Run `redis-cli ping` in your terminal. It should respond with `PONG`.
+```bash
+redis-server
+# Or as a background service:
+# brew services start redis
+```
+> **Verify Redis:** Run `redis-cli ping` (should output `PONG`).
 
 ---
 
 ### Tab 2: Start the Celery Worker
-
-Navigate to the project root, activate your virtual environment, and launch the Celery worker:
-
 ```bash
 cd /Users/sreerag/projects/FluxMedia
 source venv/bin/activate
 celery -A app.worker.celery_app worker --loglevel=info
 ```
-*(You can also run `celery -A app.worker worker --loglevel=info`)*
-
-> **macOS Note:** On macOS, Python multiprocessing uses `spawn` instead of `fork` by default, and macOS security checks may occasionally trigger fork-safety warnings. If you encounter any fork-safety issues on macOS, run the worker with the `solo` pool:
-> ```bash
-> celery -A app.worker.celery_app worker --loglevel=info --pool=solo
-> ```
-> Or export the macOS fork-safety environment variable before starting:
-> ```bash
-> export OBJC_DISABLE_INITIALIZE_FORK_SAFETY=YES
-> celery -A app.worker.celery_app worker --loglevel=info
-> ```
+> *(On macOS, the worker automatically defaults to `--pool=solo` to ensure safe single-process execution without spawn/billiard errors)*
 
 ---
 
 ### Tab 3: Start the FastAPI Server
-
-Navigate to the project root, activate your virtual environment, and launch the Uvicorn ASGI server:
-
 ```bash
 cd /Users/sreerag/projects/FluxMedia
 source venv/bin/activate
 uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 ```
-*(Or simply `uvicorn main:app --reload`)*
-
-The FastAPI application will be available at:
-- **API Base URL**: `http://127.0.0.1:8000`
-- **Interactive Swagger Docs**: [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs)
-- **ReDoc Documentation**: [http://127.0.0.1:8000/redoc](http://127.0.0.1:8000/redoc)
+- **Backend API Base**: `http://127.0.0.1:8000`
+- **Interactive API Docs**: `http://127.0.0.1:8000/docs`
 
 ---
 
-## Testing the Media Task Queue
-
-### 1. Dispatch an FFmpeg Video Compression Job
-
-When you have a video file (e.g. `sample.mp4`) in your workspace or specify its path:
-
+### Tab 4: Start the Next.js Frontend
 ```bash
-curl -X POST "http://127.0.0.1:8000/upload/sample.mp4"
+cd /Users/sreerag/projects/FluxMedia/frontend
+npm run dev
 ```
-
-**Response (Instant):**
-```json
-{
-  "job_id": "c1f7b029-7953-4dc9-980f-fa562919d363",
-  "task_id": "c1f7b029-7953-4dc9-980f-fa562919d363",
-  "filename": "sample.mp4",
-  "status": "Task dispatched"
-}
-```
-
-The Celery worker in Tab 2 will pick up the task and run:
-`ffmpeg -y -i sample.mp4 -vcodec libx264 -crf 28 compressed_sample.mp4`
+- **Frontend URL**: [http://localhost:3000](http://localhost:3000)
 
 ---
 
-### 2. Dispatch a Simulated 10-Second Delay Job
+## Architecture & Data Flow
 
-If you want to test queue concurrency without an actual video file on disk, call `/simulate/{filename}`:
+1. **File Upload (`POST /upload`)**:
+   - The user drops a video file into the Next.js **UploadZone**.
+   - The browser streams `multipart/form-data` to FastAPI at `http://localhost:8000/upload`.
+   - The backend saves the raw file to `/uploads` with a collision-resistant unique prefix and immediately dispatches a task to Celery using `.delay(saved_filepath)`.
+   - FastAPI returns HTTP 202 with `task_id`.
 
-```bash
-curl -X POST "http://127.0.0.1:8000/simulate/test_video.mp4"
-```
+2. **Active Status Polling (`GET /status/{task_id}`)**:
+   - The frontend transitions to the **StatusTracker** view.
+   - It polls `http://localhost:8000/status/{task_id}` every 2 seconds.
+   - Displays real-time animated radar and elapsed timer via Framer Motion.
+
+3. **FFmpeg Transcoding & Background Processing**:
+   - Celery worker receives the message from Redis.
+   - Executes:
+     ```bash
+     ffmpeg -y -i /uploads/<input> -vcodec libx264 -crf 28 /uploads/compressed_<input>
+     ```
+   - Writes the compressed artifact directly into `/uploads` and sets the task state to `"COMPLETED"`.
+
+4. **Result & Download (`GET /download/{filename}`)**:
+   - Once the status reaches `"COMPLETED"`, the frontend transitions to the **ResultCard** (featuring a cursor-tracking Spotlight effect).
+   - Clicking **Download Compressed Video** triggers `GET http://localhost:8000/download/compressed_<filename>` which delivers the file via FastAPI `FileResponse`.
 
 ---
 
-### 3. Poll Task Status
+## Design System: Onyx & Alabaster
 
-Check the status and result of any job using its `job_id`:
-
-```bash
-curl "http://127.0.0.1:8000/task/<YOUR_JOB_ID>"
-```
-
-- **While processing:**
-  ```json
-  {
-    "task_id": "<YOUR_JOB_ID>",
-    "status": "PENDING",
-    "result": null
-  }
-  ```
-
-- **When completed (FFmpeg compression):**
-  ```json
-  {
-    "task_id": "<YOUR_JOB_ID>",
-    "status": "SUCCESS",
-    "result": {
-      "status": "success",
-      "file": "compressed_sample.mp4"
-    }
-  }
-  ```
+- **Dual-Theme Support**:
+  - **Dark Mode (Onyx)**: Background `#09090B`, Surface cards `#121214`, Border `rgba(255, 255, 255, 0.10)`.
+  - **Light Mode (Alabaster)**: Background `#FAFAFA`, Surface cards `#FFFFFF`, Border `rgba(0, 0, 0, 0.06)`.
+- **Spotlight Cards**: Dynamic radial gradient illumination following cursor coordinates.
+- **Typography**: Inter font with high-contrast headers, muted slate subtext, and monospaced badges.

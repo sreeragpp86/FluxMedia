@@ -35,13 +35,13 @@ celery = celery_app
 
 
 @celery_app.task(name="process_video_task")
-def process_video_task(input_filename: str) -> dict:
+def process_video_task(input_filename: str, crf: int = 28) -> dict:
     """
     Asynchronous Celery task that reads an input video from /uploads,
-    compresses it using FFmpeg with H.264 codec, and writes the output
-    compressed file back to /uploads.
+    compresses it using FFmpeg with H.264 codec, calculates compression stats,
+    and writes the output compressed file back to /uploads.
     """
-    print(f"[WORKER] Picked up task for: {input_filename}")
+    print(f"[WORKER] Picked up task for: {input_filename} (CRF: {crf})")
 
     # Anchor input path to UPLOAD_DIR if not absolute
     if not os.path.isabs(input_filename):
@@ -59,13 +59,19 @@ def process_video_task(input_filename: str) -> dict:
         print(f"[WORKER] Error: {err_msg}")
         return {"status": "ERROR", "message": err_msg}
 
+    original_size = os.path.getsize(input_filepath)
+
+    # Clamp CRF to valid safe range (18 to 35)
+    safe_crf = max(18, min(int(crf or 28), 35))
+
     # The FFmpeg command: compress video using the H.264 codec
     command = [
         "ffmpeg",
         "-y",                 # Automatically overwrite existing output files
         "-i", input_filepath, # Input file path in /uploads
         "-vcodec", "libx264", # H.264 video codec
-        "-crf", "28",         # Compression rate (higher = smaller file size)
+        "-crf", str(safe_crf),# Compression rate (higher = smaller file size)
+        "-preset", "medium",  # Standard balanced encoding preset
         output_filepath,      # Output file path in /uploads
     ]
 
@@ -73,11 +79,23 @@ def process_video_task(input_filename: str) -> dict:
         # Execute the FFmpeg command synchronously within this background worker
         subprocess.run(command, check=True, capture_output=True)
         print(f"[WORKER] Finished compression. Saved as {output_filepath}")
+
+        output_size = os.path.getsize(output_filepath) if os.path.exists(output_filepath) else 0
+        savings_pct = (
+            round(((original_size - output_size) / original_size * 100), 1)
+            if original_size > output_size
+            else 0.0
+        )
+
         return {
             "status": "COMPLETED",
             "file": output_filename,
             "filename": output_filename,
             "download_url": f"/download/{output_filename}",
+            "original_size": original_size,
+            "output_size": output_size,
+            "savings_pct": savings_pct,
+            "crf": safe_crf,
         }
 
     except FileNotFoundError:
@@ -104,7 +122,7 @@ def process_video_task(input_filename: str) -> dict:
 
 
 @celery_app.task(name="dummy_task")
-def dummy_task(filename: str) -> dict:
+def dummy_task(filename: str, crf: int = 28) -> dict:
     """
     Simulates asynchronous media processing with a 10-second delay for testing.
     """
@@ -118,6 +136,10 @@ def dummy_task(filename: str) -> dict:
         "file": output_filename,
         "filename": output_filename,
         "download_url": f"/download/{output_filename}",
+        "original_size": 25000000,
+        "output_size": 13500000,
+        "savings_pct": 46.0,
+        "crf": crf,
         "message": f"Successfully simulated processing for {filename}",
     }
 

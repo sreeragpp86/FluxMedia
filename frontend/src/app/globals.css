@@ -5,46 +5,76 @@
 @layer base {
   :root {
     --background: #FAFAFA;
+    --foreground: #09090B;
     --surface: #FFFFFF;
-    --border: rgba(0, 0, 0, 0.06);
-    --text-primary: #09090B;
-    --text-muted: #71717A;
-    --accent: #18181B;
-    --accent-hover: #27272A;
+    --surface-card: #FFFFFF;
+    --surface-secondary: #F4F4F5;
+    --surface-hover: #E4E4E7;
+    --border: rgba(0, 0, 0, 0.08);
+    --border-dashed: rgba(0, 0, 0, 0.15);
+    --muted: #71717A;
+    --muted-foreground: #52525B;
   }
 
   .dark {
     --background: #09090B;
+    --foreground: #EDEDED;
     --surface: #121214;
-    --border: rgba(255, 255, 255, 0.10);
-    --text-primary: #FAFAFA;
-    --text-muted: #A1A1AA;
-    --accent: #FFFFFF;
-    --accent-hover: #E4E4E7;
+    --surface-card: #121214;
+    --surface-secondary: #18181B;
+    --surface-hover: #27272A;
+    --border: rgba(255, 255, 255, 0.1);
+    --border-dashed: rgba(255, 255, 255, 0.18);
+    --muted: #A1A1AA;
+    --muted-foreground: #71717A;
+  }
+
+  * {
+    border-color: var(--border);
   }
 
   body {
     background-color: var(--background);
-    color: var(--text-primary);
-    font-family: var(--font-inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif);
+    color: var(--foreground);
+    font-family: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     min-height: 100vh;
-    transition: background-color 0.25s ease, color 0.25s ease;
+    transition: background-color 0.15s ease, color 0.15s ease;
   }
 }
 
-/* Custom background grid pattern for subtle elegance */
-.bg-grid-pattern {
-  background-size: 32px 32px;
-  background-image: 
-    linear-gradient(to right, rgba(255, 255, 255, 0.03) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+/* Vercel / Linear Minimalist Card */
+.bento-card {
+  background-color: var(--surface-card);
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  transition: border-color 0.15s ease, background-color 0.15s ease;
 }
 
-.light .bg-grid-pattern {
-  background-size: 32px 32px;
-  background-image: 
-    linear-gradient(to right, rgba(0, 0, 0, 0.03) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(0, 0, 0, 0.03) 1px, transparent 1px);
+.bento-card:hover {
+  border-color: rgba(255, 255, 255, 0.18);
+}
+
+.light .bento-card:hover {
+  border-color: rgba(0, 0, 0, 0.14);
+}
+
+/* Terminal & Log Scrollbars */
+::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--muted);
 }

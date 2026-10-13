@@ -10,14 +10,15 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        background: {
-          light: "#FAFAFA",
-          dark: "#09090B",
-        },
+        background: "var(--background)",
+        foreground: "var(--foreground)",
         surface: {
-          light: "#FFFFFF",
-          dark: "#121214",
+          DEFAULT: "var(--surface)",
+          card: "var(--surface-card)",
+          secondary: "var(--surface-secondary)",
+          hover: "var(--surface-hover)",
         },
+        border: "var(--border)",
         onyx: {
           950: "#09090B",
           900: "#121214",
@@ -34,14 +35,36 @@ const config: Config = {
         },
       },
       fontFamily: {
-        sans: ["var(--font-inter)", "Inter", "system-ui", "sans-serif"],
+        sans: [
+          "Inter",
+          "-apple-system",
+          "BlinkMacSystemFont",
+          "Segoe UI",
+          "Roboto",
+          "sans-serif",
+        ],
+        mono: [
+          "GeistMono",
+          "ui-monospace",
+          "SFMono-Regular",
+          "Menlo",
+          "Monaco",
+          "Consolas",
+          "monospace",
+        ],
+      },
+      borderRadius: {
+        lg: "0.5rem",
+        md: "0.375rem",
+        sm: "0.25rem",
       },
       boxShadow: {
-        glow: "0 0 50px -10px rgba(255, 255, 255, 0.06)",
-        "glow-lg": "0 0 80px -20px rgba(255, 255, 255, 0.12)",
+        subtle: "0 1px 2px 0 rgba(0, 0, 0, 0.05)",
+        spotlight: "0 0 50px -10px rgba(255, 255, 255, 0.1)",
       },
     },
   },
   plugins: [],
 };
+
 export default config;

@@ -13,8 +13,8 @@ interface SpotlightCardProps {
 export function SpotlightCard({
   children,
   className = "",
-  spotlightColorDark = "rgba(255, 255, 255, 0.12)",
-  spotlightColorLight = "rgba(0, 0, 0, 0.05)",
+  spotlightColorDark = "rgba(255, 255, 255, 0.06)",
+  spotlightColorLight = "rgba(0, 0, 0, 0.04)",
 }: SpotlightCardProps) {
   const cardRef = useRef<HTMLDivElement>(null);
   const mouseX = useMotionValue(0);
@@ -34,16 +34,16 @@ export function SpotlightCard({
       onMouseMove={handleMouseMove}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
-      className={`relative overflow-hidden rounded-2xl border border-black/5 dark:border-white/10 bg-white dark:bg-[#121214] shadow-sm transition-shadow duration-300 hover:shadow-lg ${className}`}
+      className={`relative overflow-hidden rounded-lg border border-black/5 dark:border-white/10 bg-white dark:bg-[#121214] transition-colors duration-200 ${className}`}
     >
-      {/* Light mode spotlight */}
+      {/* Light mode cursor spotlight */}
       <motion.div
         className="pointer-events-none absolute -inset-px transition-opacity duration-300 dark:hidden"
         style={{
           opacity: isHovered ? 1 : 0,
           background: useMotionTemplate`
             radial-gradient(
-              450px circle at ${mouseX}px ${mouseY}px,
+              400px circle at ${mouseX}px ${mouseY}px,
               ${spotlightColorLight},
               transparent 80%
             )
@@ -51,14 +51,14 @@ export function SpotlightCard({
         }}
       />
 
-      {/* Dark mode spotlight */}
+      {/* Dark mode cursor spotlight */}
       <motion.div
         className="pointer-events-none absolute -inset-px transition-opacity duration-300 hidden dark:block"
         style={{
           opacity: isHovered ? 1 : 0,
           background: useMotionTemplate`
             radial-gradient(
-              450px circle at ${mouseX}px ${mouseY}px,
+              400px circle at ${mouseX}px ${mouseY}px,
               ${spotlightColorDark},
               transparent 80%
             )

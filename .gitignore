@@ -24,6 +24,16 @@ frontend/out/
 celerybeat-schedule
 *.pid
 
-# IDE
+# IDE & Tooling
 .vscode/
 .idea/
+.agents/
+
+# Redis Dumps
+*.rdb
+dump.rdb
+
+# Environment Variables & Secrets
+.env
+.env.*
+*.env

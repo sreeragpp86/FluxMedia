@@ -5,8 +5,8 @@ import { motion, AnimatePresence } from "framer-motion";
 import { UploadZone } from "@/components/UploadZone";
 import { StatusTracker } from "@/components/StatusTracker";
 import { ResultCard } from "@/components/ResultCard";
-import { uploadVideo } from "@/lib/api";
-import { Server, Database, Cpu, AlertOctagon, RotateCcw } from "lucide-react";
+import { uploadVideo, TaskResultData } from "@/lib/api";
+import { RotateCcw, AlertCircle, Terminal } from "lucide-react";
 
 type AppState = "idle" | "tracking" | "completed" | "error";
 
@@ -15,39 +15,63 @@ export default function HomePage() {
   const [activeTaskId, setActiveTaskId] = useState<string>("");
   const [activeFilename, setActiveFilename] = useState<string>("");
   const [outputFilename, setOutputFilename] = useState<string>("");
+  const [taskResult, setTaskResult] = useState<TaskResultData | null>(null);
   const [isUploading, setIsUploading] = useState<boolean>(false);
   const [uploadProgress, setUploadProgress] = useState<number>(0);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  const handleFileSelected = async (file: File) => {
+  // Live Terminal Logs in Bento Side-Card
+  const [terminalLogs, setTerminalLogs] = useState<string[]>([
+    "sys: cluster initialized · listening on redis :6379",
+    "worker: celery solo pool standing by for task events",
+    "gateway: fastapi streaming multipart router mounted",
+  ]);
+
+  const handleFileSelected = async (file: File, crf: number) => {
     setIsUploading(true);
     setUploadProgress(0);
     setErrorMessage(null);
     setActiveFilename(file.name);
+    setTerminalLogs((prev) => [
+      ...prev,
+      `ingest: incoming stream [${file.name}] (${(file.size / (1024 * 1024)).toFixed(1)} MB)`,
+    ]);
 
     try {
-      const response = await uploadVideo(file, (percent) => {
+      const response = await uploadVideo(file, crf, (percent) => {
         setUploadProgress(percent);
       });
-
-      // Transition to tracking state
       setActiveTaskId(response.task_id);
+      setTerminalLogs((prev) => [
+        ...prev,
+        `dispatch: task enqueued id=${response.task_id}`,
+      ]);
       setAppState("tracking");
     } catch (err: any) {
-      setErrorMessage(err.message || "Failed to upload video to backend");
+      setErrorMessage(err.message || "Upload stream failed. Ensure backend is running.");
+      setTerminalLogs((prev) => [
+        ...prev,
+        `error: upload rejected - ${err.message || "unknown failure"}`,
+      ]);
     } finally {
       setIsUploading(false);
     }
   };
 
-  const handleTaskCompleted = (result: any) => {
+  const handleTaskCompleted = (result: TaskResultData | null | undefined) => {
     const outName = result?.filename || result?.file || `compressed_${activeFilename}`;
     setOutputFilename(outName);
+    setTaskResult(result || null);
+    setTerminalLogs((prev) => [
+      ...prev,
+      `completed: artifact ready [${outName}]`,
+    ]);
     setAppState("completed");
   };
 
   const handleTaskError = (error: string) => {
     setErrorMessage(error);
+    setTerminalLogs((prev) => [...prev, `error: task failed - ${error}`]);
     setAppState("error");
   };
 
@@ -56,163 +80,145 @@ export default function HomePage() {
     setActiveTaskId("");
     setActiveFilename("");
     setOutputFilename("");
+    setTaskResult(null);
     setErrorMessage(null);
     setUploadProgress(0);
+    setTerminalLogs((prev) => [...prev, "sys: reset console to idle state"]);
+  };
+
+  const handleLogsUpdate = (newLogs: string[]) => {
+    setTerminalLogs(newLogs);
   };
 
   return (
-    <div className="space-y-12">
+    <div className="space-y-6">
       {/* Hero Header */}
-      <section className="text-center space-y-4 pt-4">
-        <motion.div
-          initial={{ opacity: 0, y: -10 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-mono border border-black/5 dark:border-white/10 bg-white/60 dark:bg-[#121214]/60 backdrop-blur-md text-zinc-600 dark:text-zinc-400 mb-2"
-        >
-          <span className="w-1.5 h-1.5 rounded-full bg-zinc-900 dark:bg-zinc-100" />
-          <span>Onyx & Alabaster Interface</span>
-        </motion.div>
+      <div className="space-y-1 pb-4 border-b border-black/5 dark:border-white/10">
+        <h1 className="text-xl sm:text-2xl font-semibold tracking-tight text-zinc-900 dark:text-white">
+          Distributed Media Processing Queue
+        </h1>
+        <p className="text-xs sm:text-sm text-zinc-500 dark:text-zinc-400">
+          Decoupled FFmpeg video transcoding with FastAPI, Redis, and Celery.
+        </p>
+      </div>
 
-        <motion.h1
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.1 }}
-          className="text-4xl sm:text-5xl font-bold tracking-tight text-zinc-900 dark:text-zinc-100 max-w-2xl mx-auto"
-        >
-          Distributed Media Task Queue
-        </motion.h1>
+      {/* Main Bento Layout: Stage + Worker Telemetry */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-stretch">
+        {/* Bento Primary Stage (lg:col-span-8) */}
+        <div className="lg:col-span-8 flex flex-col justify-start">
+          <AnimatePresence mode="wait">
+            {appState === "idle" && (
+              <motion.div
+                key="idle"
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -8 }}
+                transition={{ duration: 0.2 }}
+              >
+                <UploadZone
+                  onFileSelected={handleFileSelected}
+                  isUploading={isUploading}
+                  uploadProgress={uploadProgress}
+                  errorMessage={errorMessage}
+                />
+              </motion.div>
+            )}
 
-        <motion.p
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
-          className="text-sm sm:text-base text-zinc-500 dark:text-zinc-400 max-w-xl mx-auto leading-relaxed"
-        >
-          High-throughput asynchronous FFmpeg video transcoding powered by FastAPI, Celery, and Redis.
-        </motion.p>
-      </section>
+            {appState === "tracking" && (
+              <motion.div
+                key="tracking"
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -8 }}
+                transition={{ duration: 0.2 }}
+              >
+                <StatusTracker
+                  taskId={activeTaskId}
+                  filename={activeFilename}
+                  onCompleted={handleTaskCompleted}
+                  onError={handleTaskError}
+                  onReset={handleReset}
+                  onLogsUpdate={handleLogsUpdate}
+                />
+              </motion.div>
+            )}
 
-      {/* Main Interactive Stage */}
-      <section className="max-w-2xl mx-auto">
-        <AnimatePresence mode="wait">
-          {appState === "idle" && (
-            <motion.div
-              key="idle"
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-            >
-              <UploadZone
-                onFileSelected={handleFileSelected}
-                isUploading={isUploading}
-                uploadProgress={uploadProgress}
-                errorMessage={errorMessage}
-              />
-            </motion.div>
-          )}
+            {appState === "completed" && (
+              <motion.div
+                key="completed"
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -8 }}
+                transition={{ duration: 0.2 }}
+              >
+                <ResultCard
+                  originalFilename={activeFilename}
+                  outputFilename={outputFilename}
+                  taskId={activeTaskId}
+                  resultData={taskResult}
+                  onReset={handleReset}
+                />
+              </motion.div>
+            )}
 
-          {appState === "tracking" && (
-            <motion.div
-              key="tracking"
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-            >
-              <StatusTracker
-                taskId={activeTaskId}
-                filename={activeFilename}
-                onCompleted={handleTaskCompleted}
-                onError={handleTaskError}
-                onReset={handleReset}
-              />
-            </motion.div>
-          )}
-
-          {appState === "completed" && (
-            <motion.div
-              key="completed"
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-            >
-              <ResultCard
-                originalFilename={activeFilename}
-                outputFilename={outputFilename}
-                taskId={activeTaskId}
-                onReset={handleReset}
-              />
-            </motion.div>
-          )}
-
-          {appState === "error" && (
-            <motion.div
-              key="error"
-              initial={{ opacity: 0, scale: 0.98 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.98 }}
-              className="p-8 rounded-2xl border border-rose-500/20 bg-rose-500/5 text-center space-y-4"
-            >
-              <div className="w-12 h-12 rounded-2xl bg-rose-500/10 border border-rose-500/20 text-rose-500 flex items-center justify-center mx-auto">
-                <AlertOctagon className="w-6 h-6" />
-              </div>
-              <h3 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">
-                Transcoding Failed
-              </h3>
-              <p className="text-xs font-mono text-rose-600 dark:text-rose-400 max-w-md mx-auto">
-                {errorMessage || "An unexpected error occurred during FFmpeg execution."}
-              </p>
-              <div className="pt-2">
+            {appState === "error" && (
+              <motion.div
+                key="error"
+                initial={{ opacity: 0, scale: 0.98 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.98 }}
+                className="rounded-lg border border-red-500/20 bg-white dark:bg-[#121214] p-6 space-y-4 text-center"
+              >
+                <div className="w-10 h-10 rounded-full bg-red-500/10 text-red-500 flex items-center justify-center mx-auto">
+                  <AlertCircle className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-medium text-zinc-900 dark:text-white">
+                    Task Execution Interrupted
+                  </h3>
+                  <p className="text-xs font-mono text-red-600 dark:text-red-400 mt-1 max-w-md mx-auto">
+                    {errorMessage || "FFmpeg encountered an encoding exception in worker thread."}
+                  </p>
+                </div>
                 <button
                   onClick={handleReset}
-                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl border border-black/5 dark:border-white/10 bg-white dark:bg-[#121214] text-xs font-medium text-zinc-800 dark:text-zinc-200 hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors"
+                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-md bg-zinc-900 dark:bg-white text-white dark:text-zinc-950 text-xs font-medium hover:bg-zinc-800 dark:hover:bg-zinc-100 transition-colors"
                 >
-                  <RotateCcw className="w-4 h-4" />
-                  <span>Try Another Video</span>
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  <span>Try Again</span>
                 </button>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+
+        {/* Bento Telemetry Panel (lg:col-span-4) */}
+        <div className="lg:col-span-4 rounded-lg border border-black/5 dark:border-white/10 bg-white dark:bg-[#121214] flex flex-col justify-between overflow-hidden min-h-[380px]">
+          <div className="p-4 border-b border-black/5 dark:border-white/10 flex items-center justify-between">
+            <span className="text-xs font-medium text-zinc-900 dark:text-white flex items-center gap-2">
+              <Terminal className="w-3.5 h-3.5 text-zinc-500" />
+              <span>Worker Telemetry</span>
+            </span>
+            <span className="text-[10px] font-mono text-zinc-500 dark:text-zinc-400">
+              {terminalLogs.length} events
+            </span>
+          </div>
+
+          <div className="p-4 font-mono text-[11px] space-y-2 text-zinc-600 dark:text-zinc-400 flex-1 overflow-y-auto max-h-[320px] lg:max-h-none">
+            {terminalLogs.map((log, i) => (
+              <div key={i} className="flex items-start gap-1.5 leading-relaxed">
+                <span className="text-zinc-400 select-none">&gt;</span>
+                <span className="break-all">{log}</span>
               </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </section>
-
-      {/* Architecture Cards Section */}
-      <section className="pt-8 border-t border-black/5 dark:border-white/10">
-        <h3 className="text-xs font-mono uppercase tracking-wider text-zinc-400 dark:text-zinc-500 text-center mb-6">
-          Distributed Pipeline Infrastructure
-        </h3>
-
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="p-5 rounded-xl border border-black/5 dark:border-white/10 bg-white dark:bg-[#121214] space-y-2">
-            <div className="flex items-center gap-2.5 text-zinc-900 dark:text-zinc-100 font-medium text-sm">
-              <Server className="w-4 h-4 text-zinc-400" />
-              <span>FastAPI API Gateway</span>
-            </div>
-            <p className="text-xs text-zinc-500 dark:text-zinc-400 leading-relaxed">
-              Handles multipart stream uploads to <code className="text-[11px] font-mono px-1 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800">/uploads</code>, verifies payloads, and dispatches Celery tasks.
-            </p>
+            ))}
           </div>
 
-          <div className="p-5 rounded-xl border border-black/5 dark:border-white/10 bg-white dark:bg-[#121214] space-y-2">
-            <div className="flex items-center gap-2.5 text-zinc-900 dark:text-zinc-100 font-medium text-sm">
-              <Database className="w-4 h-4 text-zinc-400" />
-              <span>Redis Queue & Store</span>
-            </div>
-            <p className="text-xs text-zinc-500 dark:text-zinc-400 leading-relaxed">
-              Acts as the distributed broker and result backend running locally at <code className="text-[11px] font-mono px-1 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800">redis://localhost:6379/0</code>.
-            </p>
-          </div>
-
-          <div className="p-5 rounded-xl border border-black/5 dark:border-white/10 bg-white dark:bg-[#121214] space-y-2">
-            <div className="flex items-center gap-2.5 text-zinc-900 dark:text-zinc-100 font-medium text-sm">
-              <Cpu className="w-4 h-4 text-zinc-400" />
-              <span>Celery Worker & FFmpeg</span>
-            </div>
-            <p className="text-xs text-zinc-500 dark:text-zinc-400 leading-relaxed">
-              Asynchronous worker processes video compression with H.264 codec and writes output back to <code className="text-[11px] font-mono px-1 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800">/uploads</code>.
-            </p>
+          <div className="p-3 border-t border-black/5 dark:border-white/10 bg-zinc-50 dark:bg-zinc-900/40 text-[10px] font-mono text-zinc-500 flex items-center justify-between">
+            <span>broker: redis:6379</span>
+            <span>solo pool active</span>
           </div>
         </div>
-      </section>
+      </div>
     </div>
   );
 }
